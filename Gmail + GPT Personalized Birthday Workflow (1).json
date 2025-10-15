@@ -1,0 +1,199 @@
+{
+  "name": "Gmail + GPT Personalized Birthday Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "message",
+        "subject": "Happy Birthday 🎉",
+        "message": "={{ $json.message.content }}",
+        "toList": [
+          "={{ $('Google Sheets - Read Birthdays').item.json.Email }}"
+        ],
+        "additionalFields": {}
+      },
+      "name": "Gmail - Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 1,
+      "position": [
+        1168,
+        -16
+      ],
+      "id": "e5ba64b3-1967-4fbe-9678-5f9c4f59f8ee",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "38D321B0C8vQfydB",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json[\"Birthday\"].substring(5)}}",
+              "value2": "={{new Date().toISOString().substring(5,10)}}"
+            }
+          ]
+        }
+      },
+      "name": "IF - Is Birthday Today?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        400,
+        0
+      ],
+      "id": "10e31f8c-bfe6-4f2a-87bc-f4903e71e130"
+    },
+    {
+      "parameters": {
+        "sheetId": "=1TegpRa4hVI3JlP-j2UgV9UFvqUy0FVByrFuoiX6gtDI",
+        "options": {}
+      },
+      "name": "Google Sheets - Read Birthdays",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "bb2caf02-6ea5-4c99-a84f-c3df05d44330",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "H1Pfa2ZNUMpLiXE5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "name": "Cron - Midnight",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "cb8ed58a-4d7f-47d3-b253-72d2ed3c82ac"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Function node: normalize Birthday and return only rows with birthday today (Asia/Karachi UTC+5)\nconst offsetHours = 5; // change if you are not in Asia/Karachi\nconst now = new Date(Date.now() + offsetHours * 3600000);\nconst mmddToday = ('0' + (now.getMonth() + 1)).slice(-2) + '-' + ('0' + now.getDate()).slice(-2);\nconst year = now.getFullYear();\nconst isLeap = y => (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0));\n\nconst out = [];\n\nfor (const item of items) {\n  const row = {...item.json};\n  let bd = row.Birthday;\n  if (bd === undefined || bd === null || bd === '') continue;\n\n  let bdIso = null;\n\n  // If Google Sheets gives a number (serial)\n  if (typeof bd === 'number') {\n    const base = new Date(1899, 11, 30); // Google Sheets base\n    const date = new Date(base.getTime() + bd * 86400000);\n    bdIso = date.toISOString().split('T')[0];\n  } else if (typeof bd === 'string') {\n    const s = bd.trim();\n    if (/^\\d{4}-\\d{2}-\\d{2}$/.test(s)) {\n      bdIso = s;\n    } else {\n      const parsed = new Date(s);\n      if (!isNaN(parsed)) bdIso = parsed.toISOString().split('T')[0];\n      // if parsing fails, skip row (or handle manually)\n    }\n  }\n\n  if (!bdIso) continue;\n  row.Birthday = bdIso;\n  const mmdd = bdIso.slice(5);\n\n  // Handle Feb 29 on non-leap years -> treat as Feb 28 (optional)\n  if (mmdd === mmddToday || (mmdd === '02-29' && !isLeap(year) && mmddToday === '02-28')) {\n    out.push({ json: row });\n  }\n}\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        -16
+      ],
+      "id": "07a250b4-28bb-4b0c-8bac-782d09e45607",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "GPT-3.5-TURBO"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are a warm, creative birthday assistant. Write a short, personal 1-2 sentence birthday message with a friendly tone and appropriate emoji.",
+              "role": "system"
+            },
+            {
+              "content": "=Name: {{$json[\"Name\"]}}\nRelation: {{$json[\"Relation\"]}}\nWrite a short, unique birthday message (1-2 sentences). No sign-offs, only the message.\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        832,
+        -16
+      ],
+      "id": "751079fc-8728-4c5f-b577-a6461c5aa20e",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "ZyE0PxFIbOaRyAnc",
+          "name": "OpenAi account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "IF - Is Birthday Today?": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Read Birthdays": {
+      "main": [
+        [
+          {
+            "node": "IF - Is Birthday Today?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cron - Midnight": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Read Birthdays",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e5101317-5e73-4b3e-8f8c-90de1332ed3e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8ea5acd4a51e09e6572d7afce38eede4fd557422c8acf749eaf49f3f29e79c4c"
+  },
+  "id": "IR3jVP8x6wb4icsW",
+  "tags": []
+}
