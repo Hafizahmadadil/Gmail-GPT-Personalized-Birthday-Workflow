@@ -36,7 +36,7 @@ Gmail Node – Sends the AI-generated message to the person via email.
 
 🧩 Example Use Case
 Name	Relationship	Birthday	Email
-Fatima	Wife	28-Aug-1998	fatima@gmail.com
+Fatima	Mother	28-Aug-1998	fatima@gmail.com
 
 Zain	Son	10-Jan-2015	zain@gmail.com
 
